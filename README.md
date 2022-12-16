@@ -1,3 +1,31 @@
+# meals-mongo-firebase-adminjs-jwt
+
+# 🚀 meals delivery eCommerce with MongoDB Firebase AdminJS and JWT 🚀
+
+https://github.com/coding-to-music/meals-mongo-firebase-adminjs-jwt
+
+https://meals-mongo-firebase-adminjs-jwt.vercel.app
+
+From / By https://github.com/SEM5-MiniProject/Backend
+
+## Environment variables:
+
+```java
+
+```
+
+## GitHub
+
+```java
+git init
+git add .
+git remote remove origin
+git commit -m "first commit"
+git branch -M main
+git remote add origin git@github.com:coding-to-music/meals-mongo-firebase-adminjs-jwt.git
+git push -u origin main
+```
+
 # Backend
 
 [![Node.js CI](https://github.com/SEM5-MiniProject/Backend/actions/workflows/node.js.yml/badge.svg)](https://github.com/SEM5-MiniProject/Backend/actions/workflows/node.js.yml)
@@ -30,7 +58,7 @@
 
 ```
     npm install --global yarn
-    yarn install 
+    yarn install
 ```
 
 <h4> How To Run </h4>
@@ -62,3 +90,4 @@
 ```
 docker run --env-file .env -p 5000:5000 salmanad01/mealdiaries:latest
 ```
+
