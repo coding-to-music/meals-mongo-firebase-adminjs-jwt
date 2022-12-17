@@ -1,128 +1,133 @@
-const { default: mongoose } = require('mongoose');
-const Cart = require('../model/cart');
-const Order = require('../model/order');
-const { nanoid } = require('nanoid');
-const Razorpay = require('razorpay');
-const crypto = require('crypto');
-const Food = require('../model/food');
+const { default: mongoose } = require("mongoose");
+const Cart = require("../model/cart");
+const Order = require("../model/order");
+const { nanoid } = require("nanoid");
+const Razorpay = require("razorpay");
+const crypto = require("crypto");
+const Food = require("../model/food");
 const instance = new Razorpay({
-  key_id: process.env.KEY_ID,
-  key_secret: process.env.KEY_SECRET
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
 const verifyPost = async (req, res) => {
   try {
     console.log("verify");
     console.log(req.body);
-    const hmac = crypto.createHmac('sha256', process.env.KEY_SECRET);
-    hmac.update(req.body.razorpay_order_id + '|' + req.body.razorpay_payment_id);
-    const digest = hmac.digest('hex');
+    const hmac = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET);
+    hmac.update(
+      req.body.razorpay_order_id + "|" + req.body.razorpay_payment_id
+    );
+    const digest = hmac.digest("hex");
     if (digest === req.body.razorpay_signature) {
-      await Order.updateMany({ orderId: req.body.razorpay_order_id }, {
-        paymentId: req.body.razorpay_payment_id,
-        signature: req.body.razorpay_signature,
-        paymentStatus: 'paid',
-      }, { new: true });
-      return res.redirect('/');
+      await Order.updateMany(
+        { orderId: req.body.razorpay_order_id },
+        {
+          paymentId: req.body.razorpay_payment_id,
+          signature: req.body.razorpay_signature,
+          paymentStatus: "paid",
+        },
+        { new: true }
+      );
+      return res.redirect("/");
     } else {
       return res.status(500).json({
-        message: 'Something Went Wrong'
+        message: "Something Went Wrong",
       });
     }
-  }
-  catch (e) {
+  } catch (e) {
     console.log(e);
     res.status(500).json({
-      message: 'Something Went Wrong'
+      message: "Something Went Wrong",
     });
   }
-}
+};
 
-const cartPost = async (req,res)=>{
-  try{
+const cartPost = async (req, res) => {
+  try {
     const myCart = await Cart.aggregate([
       {
         $match: {
-          user: mongoose.Types.ObjectId(req.user._id)
-        }
+          user: mongoose.Types.ObjectId(req.user._id),
+        },
       },
       {
         $lookup: {
-          from: 'foods',
-          localField: 'food',
-          foreignField: '_id',
-          as: 'food'
-        }
+          from: "foods",
+          localField: "food",
+          foreignField: "_id",
+          as: "food",
+        },
       },
       {
         $lookup: {
-          from: 'offers',
-          localField: 'food._id',
-          foreignField: 'food',
-          as: 'offer'
-        }
+          from: "offers",
+          localField: "food._id",
+          foreignField: "food",
+          as: "offer",
+        },
       },
       {
         $project: {
-          food: { $arrayElemAt: ['$food', 0] },
+          food: { $arrayElemAt: ["$food", 0] },
           quantity: 1,
           offer: {
             $filter: {
-              input: '$offer',
-              as: 'offer',
+              input: "$offer",
+              as: "offer",
               cond: {
-                $gte: ['$$offer.validTill', new Date()]
-              }
-            }
-          }
-        }
+                $gte: ["$$offer.validTill", new Date()],
+              },
+            },
+          },
+        },
       },
       {
         $project: {
           food: 1,
           quantity: 1,
           offer: {
-            $arrayElemAt: ['$offer', 0]
-          }
-        }
+            $arrayElemAt: ["$offer", 0],
+          },
+        },
       },
       {
         $group: {
           _id: null,
           total: {
             $sum: {
-              $multiply: ['$food.price', '$quantity']
-            }
+              $multiply: ["$food.price", "$quantity"],
+            },
           },
           totalOffer: {
             $sum: {
               $cond: {
                 if: {
-                  $gte: ['$offer.validTill', new Date()]
+                  $gte: ["$offer.validTill", new Date()],
                 },
                 then: {
                   $multiply: [
                     {
-                      $subtract: ['$food.price', '$offer.newprice']
+                      $subtract: ["$food.price", "$offer.newprice"],
                     },
-                    '$quantity'
-                  ]
+                    "$quantity",
+                  ],
                 },
-                else: 0
-              }
+                else: 0,
+              },
             },
           },
           totalItems: {
-            $sum: '$quantity'
+            $sum: "$quantity",
           },
           cart: {
             $push: {
-              food: '$food',
-              quantity: '$quantity',
-              offer: '$offer'
-            }
-          }
-        }
+              food: "$food",
+              quantity: "$quantity",
+              offer: "$offer",
+            },
+          },
+        },
       },
       {
         $project: {
@@ -130,13 +135,13 @@ const cartPost = async (req,res)=>{
           total: 1,
           totalOffer: 1,
           totalItems: 1,
-          cart: 1
-        }
+          cart: 1,
+        },
       },
     ]);
     const order = await instance.orders.create({
       amount: (myCart[0].total - myCart[0].totalOffer) * 100,
-      currency: 'INR',
+      currency: "INR",
       receipt: nanoid(),
       payment_capture: 1,
     });
@@ -145,32 +150,34 @@ const cartPost = async (req,res)=>{
       return {
         foodId: item.food._id,
         quantity: item.quantity,
-        price: item.offer && item.offer.newprice ? item.offer.newprice : item.food.price,
-      }
+        price:
+          item.offer && item.offer.newprice
+            ? item.offer.newprice
+            : item.food.price,
+      };
     });
     console.log(OrderDetail);
     const paymentCart = new Order({
       userId: req.user._id,
       orderDetails: OrderDetail,
-      totalAmount:order.amount / 100,
-      paymentType: 'online',
+      totalAmount: order.amount / 100,
+      paymentType: "online",
       orderId: order.id,
       status: order.status,
       receiptId: order.receipt,
-    })
+    });
     await paymentCart.save();
     res.status(200).json({
       order: order,
-      payment:paymentCart
+      payment: paymentCart,
     });
-  }
-  catch(e){
+  } catch (e) {
     console.log(e);
     res.status(500).json({
-      message: 'Something Went Wrong'
+      message: "Something Went Wrong",
     });
   }
-}
+};
 const buySinglePost = async (req, res) => {
   console.log(req.body);
   try {
@@ -184,10 +191,10 @@ const buySinglePost = async (req, res) => {
       },
       {
         $lookup: {
-          from: 'offers',
-          localField: '_id',
-          foreignField: 'food',
-          as: 'offer',
+          from: "offers",
+          localField: "_id",
+          foreignField: "food",
+          as: "offer",
         },
       },
       {
@@ -197,13 +204,13 @@ const buySinglePost = async (req, res) => {
           price: 1,
           offer: {
             $filter: {
-              input: '$offer',
-              as: 'offer',
+              input: "$offer",
+              as: "offer",
               cond: {
-                $gte: ['$$offer.validTill', new Date()]
-              }
+                $gte: ["$$offer.validTill", new Date()],
+              },
             },
-          }
+          },
         },
       },
       {
@@ -216,16 +223,16 @@ const buySinglePost = async (req, res) => {
               if: {
                 $eq: [
                   {
-                    $size: '$offer'
+                    $size: "$offer",
                   },
-                  0
-                ]
+                  0,
+                ],
               },
               then: 0,
               else: {
-                $arrayElemAt: ['$offer', 0]
-              }
-            }
+                $arrayElemAt: ["$offer", 0],
+              },
+            },
           },
         },
       },
@@ -237,60 +244,64 @@ const buySinglePost = async (req, res) => {
           offer: 1,
           actual: {
             $cond: {
-              if: { $eq: ['$offer', 0] },
-              then: '$price',
-              else: '$offer.newprice',
-
-            }
-          }
+              if: { $eq: ["$offer", 0] },
+              then: "$price",
+              else: "$offer.newprice",
+            },
+          },
         },
       },
       {
         $project: {
           _id: 1,
           name: 1,
-          price: '$actual',
+          price: "$actual",
         },
-      }
-    ])
+      },
+    ]);
     const options = {
-      amount: req.body.quantity ? actualPrice[0].price * 100 * req.body.quantity : actualPrice[0].price * 100,
-      currency: 'INR',
+      amount: req.body.quantity
+        ? actualPrice[0].price * 100 * req.body.quantity
+        : actualPrice[0].price * 100,
+      currency: "INR",
       receipt: nanoid(),
-      payment_capture: 1
+      payment_capture: 1,
     };
     instance.orders.create(options, async (err, order) => {
       if (err) {
         console.log(err);
         return res.status(500).json({
-          message: 'Something Went Wrong'
+          message: "Something Went Wrong",
         });
       }
       const paymentDetail = new Order({
         userId: req.user._id,
-        orderDetails:[{
-          foodId: req.params.id,
-          quantity: req.body.quantity ? req.body.quantity : 1,
-          price: actualPrice[0].price,
-        }],
-        totalAmount:order.amount / 100,
-        paymentType: 'online',
+        orderDetails: [
+          {
+            foodId: req.params.id,
+            quantity: req.body.quantity ? req.body.quantity : 1,
+            price: actualPrice[0].price,
+          },
+        ],
+        totalAmount: order.amount / 100,
+        paymentType: "online",
         orderId: order.id,
         status: order.status,
         receiptId: order.receipt,
-      })
+      });
       await paymentDetail.save();
       return res.status(200).json({ order, paymentDetail });
     });
   } catch (e) {
     console.log(e);
     res.status(500).json({
-      message: 'Something Went Wrong'
+      message: "Something Went Wrong",
     });
   }
-}
+};
 module.exports = {
   verifyPost,
   cartPost,
   buySinglePost,
-}
+};
+
