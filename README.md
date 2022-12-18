@@ -26,6 +26,12 @@ git remote add origin git@github.com:coding-to-music/meals-mongo-firebase-adminj
 git push -u origin main
 ```
 
+## To create "secure" random passwords
+
+```
+openssl rand -base64 60
+```
+
 # Backend
 
 [![Node.js CI](https://github.com/SEM5-MiniProject/Backend/actions/workflows/node.js.yml/badge.svg)](https://github.com/SEM5-MiniProject/Backend/actions/workflows/node.js.yml)
